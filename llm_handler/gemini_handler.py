@@ -80,9 +80,10 @@ class GeminiLLMHandler:
         :param history: A list representing the conversation history.
         :return: A tuple containing the model's response text and the updated history.
         """
+        import google.generativeai as genai
+
         # Upload the image to Gemini
         file = genai.upload_file(image_path, mime_type=mime_type)
-        # file is an object that represents the uploaded file
         # print(f"Uploaded file '{file.display_name}' as: {file.uri}")
 
         # Create the model
@@ -102,19 +103,21 @@ class GeminiLLMHandler:
         # Prepare the chat history
         chat_history = history.copy()
 
+        # Include the image file in the chat history
+        chat_history.append({
+            "role": "user",
+            "parts": [
+                file,
+            ],
+        })
+
         # Start the chat session with the model
         chat_session = model.start_chat(
             history=chat_history
         )
 
-        # Prepare the user's message including the file and input text
-        user_message_parts = [
-            file,  # The uploaded file object
-            input_text,  # The user's input text
-        ]
-
-        # Send the message to the model and receive response
-        response = chat_session.send_message(parts=user_message_parts)
+        # Send the input_text to the model
+        response = chat_session.send_message(input_text)
 
         # Convert history to JSON-compatible format
         def make_json_serializable(obj):
