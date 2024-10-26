@@ -1,0 +1,71 @@
+# Byte-compiled / optimized / compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyCharm specific files
+.idea/
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Environment variables
+*.env
+*.env.*
+
+# Flask instance and database files
+instance/
+*.sqlite3
+*.db
+
+# Logs
+*.log
+logs/
+
+# Compiled C extensions
+*.so
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# macOS specific files
+.DS_Store
+
+# pipenv
+Pipfile
+Pipfile.lock
+
+# pyproject.toml if using Poetry
+# Only include if you're not using pyproject.toml as part of your repository
+#pyproject.toml
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+*.py,cover
+
+# Test outputs
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.pyc
+
+# Pytest specific files
+.pytest_cache/
+test-results/
+
+# MyPy cache
+.mypy_cache/
+
+# Profiling data
+.prof
+
+# Build files
+build/
+dist/
+*.egg-info/
+*.egg
