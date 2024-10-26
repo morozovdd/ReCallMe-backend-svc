@@ -41,3 +41,10 @@ image_inference_api_model.add_argument(
     required=False,
     help='Conversation history in JSON format'
 )
+image_inference_api_model.add_argument(
+    'mime_type',
+    type=str,
+    required=False,
+    help='mime_type media type'
+)
+

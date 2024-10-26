@@ -117,7 +117,7 @@ class AnthropicTextInference(Resource):
             # Handle exceptions and return an error message
             return {'error': str(e)}, 500
 
-@recall_namespace.route('/gemini-image-inference')
+@recall_namespace.route('/gemini-media-inference')
 class GeminiImageInference(Resource):
     @api.expect(image_inference_api_model)
     def post(self):
@@ -129,6 +129,7 @@ class GeminiImageInference(Resource):
             file = args['file']
             input_text = args.get('input_text', '')
             history_json = args.get('history', '[]')
+            mime_type = args.get('mime_type','')
 
             # Parse history if provided
             history = json.loads(history_json) if history_json else []
@@ -144,7 +145,7 @@ class GeminiImageInference(Resource):
             response_text, updated_history = llm_handler.generate_gemini_image_response(
                 image_path=temp_image_path,
                 input_text=input_text,
-                mime_type=file.content_type,
+                mime_type=mime_type,
                 history=history
             )
 
