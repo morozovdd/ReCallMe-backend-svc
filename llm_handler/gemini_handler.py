@@ -1,11 +1,11 @@
 import requests
 import json
-from utilities.constants import GEMINI_URL
+from utilities.constants import gemini_url
 
 
 class GeminiLLMHandler():
     def gemini_api_call(self, input_query):
-        url = GEMINI_URL
+        url = gemini_url
 
         payload = json.dumps({
             "contents": [

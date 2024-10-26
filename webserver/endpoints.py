@@ -6,7 +6,7 @@ from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Blueprint
 from llm_handler.gemini_handler import GeminiLLMHandler
 from llm_handler.anthropic_handler import AnthropicLLMHandler
-
+from utilities.constants import anthropic_key
 
 
 API_VERSION = '/api/v1'
@@ -70,7 +70,6 @@ class GeminiTextInference(Resource):
             return {'error': str(e)}, 500
 
 
-api_key = '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'
 
 @recall_namespace.route('/anthropic-text-inference')
 class AnthropicTextInference(Resource):
@@ -82,7 +81,7 @@ class AnthropicTextInference(Resource):
             input_query = data['query']
 
             # Make the LLM API call
-            llm_response = AnthropicLLMHandler(api_key).anthropic_api_call(input_query)
+            llm_response = AnthropicLLMHandler(anthropic_key).anthropic_api_call(input_query)
 
             # Return the response
             return {'response': llm_response}, 200
