@@ -41,7 +41,7 @@ jobs:
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
-            --port 8095
+            --timeout=600
         env:
           GEMINI_URL: ${{ secrets.GEMINI_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
