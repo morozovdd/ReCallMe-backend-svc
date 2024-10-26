@@ -1,3 +1,8 @@
+'''
+script for real time object detection and scene description. Demo on the laptop
+'''
+
+
 import cv2
 import threading
 import queue
@@ -67,6 +72,40 @@ class TextWindowManager:
         
         return current_y + self.margin
 
+    def update(self, description: str, detected_objects: List[Dict]) -> None:
+        """Update the text window with new content"""
+        # Clear window
+        self.window.fill(self.background_color[0])
+        
+        # Current y position for text
+        current_y = 40
+        
+        # Add timestamp
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        cv2.putText(
+            self.window,
+            f"Last Updated: {timestamp}",
+            (self.margin, current_y),
+            self.font,
+            self.font_scale,
+            self.text_color,
+            self.thickness
+        )
+        current_y += self.line_height * 2
+        
+        # Add main description
+        current_y = self.create_text_box(description, current_y, True)
+        
+        # Add detected objects
+        if detected_objects:
+            objects_text = "Recently Detected: " + ", ".join(
+                sorted(set(obj['name'] for obj in detected_objects))
+            )
+            self.create_text_box(objects_text, current_y)
+        
+        # Display window
+        cv2.imshow('Scene Analysis', self.window)
+
 class DetectionSystemWithClaude:
     def __init__(self, claude_api_key: str):
         # Initialize logging
@@ -89,25 +128,6 @@ class DetectionSystemWithClaude:
         self.frame_width = 416
         self.frame_height = 416
         self.fps = 30
-    
-    def list_available_cameras(self):
-        """List all available camera indices."""
-        index = 0
-        arr = []
-        while True:
-            cap = cv2.VideoCapture(index)
-            if not cap.read()[0]:
-                break
-            else:
-                arr.append(index)
-            cap.release()
-            index += 1
-        return arr
-    
-    def encode_image_base64(self, frame):
-        """Convert CV2 frame to base64 string"""
-        _, buffer = cv2.imencode('.jpg', frame)
-        return base64.b64encode(buffer).decode('utf-8')
 
     def setup_directories(self) -> None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -121,13 +141,32 @@ class DetectionSystemWithClaude:
         self.llm_queue = queue.Queue(maxsize=2)
         self.detected_objects_history = []
         self.last_llm_process_time = 0
-        self.llm_cooldown = 3.0
+        self.llm_cooldown = 5.0
 
     def setup_model(self, claude_api_key: str) -> None:
         self.model = YOLO('yolov8n.pt')
         self.device = 'cpu'
         self.claude = anthropic.Client(api_key=claude_api_key)
         self.latest_description = "Initializing scene analysis..."
+
+    def list_available_cameras(self) -> List[int]:
+        """List all available camera devices"""
+        available_cameras = []
+        for i in range(10):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                ret, _ = cap.read()
+                if ret:
+                    available_cameras.append(i)
+                cap.release()
+        return available_cameras
+
+    def encode_image_base64(self, frame: np.ndarray) -> str:
+        """Convert CV2 frame to base64 string"""
+        success, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
+        if not success:
+            return None
+        return base64.b64encode(buffer).decode('utf-8')
 
     def generate_scene_description(self, frame: np.ndarray, detected_objects: List[Dict]) -> str:
         """Generate scene description using Claude with optimized prompting"""
@@ -141,21 +180,18 @@ class DetectionSystemWithClaude:
             object_counts = {obj: recent_objects.count(obj) for obj in set(recent_objects)}
             objects_summary = ", ".join(f"{obj} ({count})" for obj, count in object_counts.items())
             
+            # Print debug information
+            print(f"\nDetected objects: {objects_summary}")
+            
             messages = [
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": f"""Analyze this scene for someone with dementia.
-                            Current objects: {objects_summary}
-                            
-                            Provide a natural, conversational 2-3 sentence description:
-                            1. Key objects and their relationship
-                            2. Any safety concerns
-                            3. Simple guidance if needed
-                            
-                            Keep it brief and clear."""
+                            "text": f"""Analyze this scene concisely in 1-2 sentences.
+                            Currently visible: {objects_summary}
+                            Focus on: location of objects, any safety concerns, simple guidance."""
                         },
                         {
                             "type": "image",
@@ -175,57 +211,73 @@ class DetectionSystemWithClaude:
                 messages=messages
             )
             
-            return response.content[0].text
+            description = response.content[0].text
+            print(f"\nClaude's description: {description}\n")
+            return description
             
         except Exception as e:
             self.logger.error(f"Claude processing error: {str(e)}")
             return "Unable to analyze scene at this moment."
 
-    def capture_video(self):
-        available_cameras = self.list_available_cameras()
-        self.logger.info(f"Available cameras: {available_cameras}")
+    def update_display(self, frame: np.ndarray, description: str) -> np.ndarray:
+        """Create a combined display with video and text"""
+        # Create a larger frame to accommodate both video and text
+        height, width = frame.shape[:2]
+        combined_height = height + 200  # Extra space for text
+        combined_frame = np.zeros((combined_height, width, 3), dtype=np.uint8)
         
-        if not available_cameras:
-            self.logger.error("No cameras available")
-            self.running = False
-            return
+        # Copy the video frame to the top portion
+        combined_frame[:height, :width] = frame
         
-        camera_index = available_cameras[0]
-        cap = cv2.VideoCapture(camera_index)
+        # Create text portion
+        text_portion = np.ones((200, width, 3), dtype=np.uint8) * 50  # Dark gray background
         
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
-        cap.set(cv2.CAP_PROP_FPS, self.fps)
-        
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(
-            str(self.output_dir / 'output.mp4'),
-            fourcc,
-            self.fps,
-            (self.frame_width, self.frame_height)
-        )
-        
-        frame_count = 0
-        try:
-            while self.running:
-                ret, frame = cap.read()
-                if ret:
-                    frame = cv2.resize(frame, (self.frame_width, self.frame_height))
-                    out.write(frame)
-                    
-                    if frame_count % 2 == 0 and not self.frame_queue.full():
-                        self.frame_queue.put(frame.copy())
-                    frame_count += 1
-                else:
-                    self.logger.error("Failed to capture frame")
-                    break
-                    
-        finally:
-            cap.release()
-            out.release()
-            self.logger.info("Video capture stopped")
+        # Add text to the bottom portion
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.4
+        font_color = (255, 255, 255)
+        thickness = 1
+        padding = 5
 
-    def process_frames(self):
+        # Wrap text to fit width
+        max_chars_per_line = width // 8
+        words = description.split()
+        lines = []
+        current_line = []
+        current_length = 0
+
+        for word in words:
+            if current_length + len(word) + 1 <= max_chars_per_line:
+                current_line.append(word)
+                current_length += len(word) + 1
+            else:
+                lines.append(' '.join(current_line))
+                current_line = [word]
+                current_length = len(word)
+        if current_line:
+            lines.append(' '.join(current_line))
+
+        # Add text lines
+        y_position = 30
+        for line in lines:
+            cv2.putText(
+                text_portion,
+                line,
+                (padding, y_position),
+                font,
+                font_scale,
+                font_color,
+                thickness
+            )
+            y_position += 30
+
+        # Combine video and text portions
+        combined_frame[height:, :] = text_portion
+        
+        return combined_frame
+
+    def process_frames(self) -> None:
+        """Process frames with YOLO detection"""
         while self.running:
             try:
                 if not self.frame_queue.empty():
@@ -278,8 +330,11 @@ class DetectionSystemWithClaude:
                             self.llm_queue.put((frame.copy(), current_detections))
                             self.last_llm_process_time = current_time
                     
+                    # Create combined display with current description
+                    combined_frame = self.update_display(annotated_frame, self.latest_description)
+                    
                     if not self.display_queue.full():
-                        self.display_queue.put(annotated_frame)
+                        self.display_queue.put(combined_frame)
                     
             except queue.Empty:
                 continue
@@ -289,8 +344,121 @@ class DetectionSystemWithClaude:
             
             time.sleep(0.001)
 
-    def claude_processing(self):
-        """Optimized Claude processing thread"""
+    def capture_video(self) -> None:
+        """Capture video from camera"""
+        available_cameras = self.list_available_cameras()
+        self.logger.info(f"Available cameras: {available_cameras}")
+        
+        if not available_cameras:
+            self.logger.error("No cameras available")
+            self.running = False
+            return
+        
+        camera_index = available_cameras[0]
+        cap = cv2.VideoCapture(camera_index)
+        
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
+        cap.set(cv2.CAP_PROP_FPS, self.fps)
+        
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(
+            str(self.output_dir / 'output.mp4'),
+            fourcc,
+            self.fps,
+            (self.frame_width, self.frame_height)
+        )
+        
+        frame_count = 0
+        try:
+            while self.running:
+                ret, frame = cap.read()
+                if ret:
+                    frame = cv2.resize(frame, (self.frame_width, self.frame_height))
+                    out.write(frame)
+                    
+                    if frame_count % 2 == 0 and not self.frame_queue.full():
+                        self.frame_queue.put(frame.copy())
+                    frame_count += 1
+                else:
+                    self.logger.error("Failed to capture frame")
+                    break
+                    
+        finally:
+            cap.release()
+            out.release()
+            self.logger.info("Video capture stopped")
+
+    def process_frames(self) -> None:
+        """Process frames with YOLO detection"""
+        while self.running:
+            try:
+                if not self.frame_queue.empty():
+                    frame = self.frame_queue.get_nowait()
+                    if frame is None:
+                        continue
+                    
+                    # Run YOLO inference
+                    results = self.model(frame, device=self.device, conf=0.25)
+                    
+                    # Process detections
+                    current_detections = []
+                    annotated_frame = frame.copy()
+                    
+                    for r in results:
+                        boxes = r.boxes
+                        for box in boxes:
+                            x1, y1, x2, y2 = map(int, box.xyxy[0])
+                            cls = int(box.cls[0])
+                            conf = float(box.conf[0])
+                            name = self.model.names[cls]
+                            
+                            current_detections.append({
+                                'name': name,
+                                'confidence': conf,
+                                'box': (x1, y1, x2, y2)
+                            })
+                            
+                            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            label = f"{name} {conf:.2f}"
+                            cv2.putText(
+                                annotated_frame,
+                                label,
+                                (x1, y1 - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5,
+                                (0, 255, 0),
+                                2
+                            )
+                    
+                    # Update detection history
+                    self.detected_objects_history.extend(current_detections)
+                    if len(self.detected_objects_history) > 50:
+                        self.detected_objects_history = self.detected_objects_history[-50:]
+                    
+                    # Check if we should process with Claude
+                    current_time = time.time()
+                    if current_time - self.last_llm_process_time >= self.llm_cooldown:
+                        if not self.llm_queue.full():
+                            self.llm_queue.put((frame.copy(), current_detections))
+                            self.last_llm_process_time = current_time
+                    
+                    # Create combined display with current description
+                    combined_frame = self.update_display(annotated_frame, self.latest_description)
+                    
+                    if not self.display_queue.full():
+                        self.display_queue.put(combined_frame)
+                    
+            except queue.Empty:
+                continue
+            except Exception as e:
+                self.logger.error(f"Frame processing error: {str(e)}")
+                continue
+            
+            time.sleep(0.001)
+
+    def claude_processing(self) -> None:
+        """Claude processing thread"""
         while self.running:
             try:
                 if not self.llm_queue.empty():
@@ -306,7 +474,8 @@ class DetectionSystemWithClaude:
                 self.logger.error(f"Claude thread error: {str(e)}")
             time.sleep(0.1)
 
-    def run(self):
+    def run(self) -> None:
+        """Main run method"""
         try:
             threads = [
                 threading.Thread(target=self.capture_video),
@@ -347,7 +516,9 @@ class DetectionSystemWithClaude:
             self.logger.info("Cleanup completed")
 
 if __name__ == "__main__":
-    CLAUDE_API_KEY = "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"  # Replace with your API key
+    # Replace with your Claude API key
+    CLAUDE_API_KEY = "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"
+    
     try:
         system = DetectionSystemWithClaude(CLAUDE_API_KEY)
         system.run()
