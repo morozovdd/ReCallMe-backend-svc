@@ -70,3 +70,58 @@ class GeminiLLMHandler:
 
         return response.text if response else 'No response from Gemini model', serialized_history
 
+    def generate_gemini_image_response(self, image_path, input_text, mime_type="image/jpeg", history=[]):
+        """
+        Generates a response from the Gemini model based on an image and input text.
+
+        :param image_path: The path to the image file to be uploaded.
+        :param input_text: The text input or prompt for the model.
+        :param mime_type: The MIME type of the image (default is 'image/jpeg').
+        :param history: A list representing the conversation history.
+        :return: A tuple containing the model's response text and the updated history.
+        """
+        # Upload the image to Gemini
+        file = genai.upload_file(image_path, mime_type=mime_type)
+        # file is an object that represents the uploaded file
+        # print(f"Uploaded file '{file.display_name}' as: {file.uri}")
+
+        # Create the model
+        generation_config = {
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 64,
+            "max_output_tokens": 8192,
+            "response_mime_type": "text/plain",
+        }
+
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            generation_config=generation_config,
+        )
+
+        # Prepare the chat history
+        chat_history = history.copy()
+
+        # Start the chat session with the model
+        chat_session = model.start_chat(
+            history=chat_history
+        )
+
+        # Prepare the user's message including the file and input text
+        user_message_parts = [
+            file,  # The uploaded file object
+            input_text,  # The user's input text
+        ]
+
+        # Send the message to the model and receive response
+        response = chat_session.send_message(parts=user_message_parts)
+
+        # Convert history to JSON-compatible format
+        def make_json_serializable(obj):
+            if isinstance(obj, (dict, list, str, int, float, bool, type(None))):
+                return obj
+            return str(obj)
+
+        serialized_history = [make_json_serializable(item) for item in chat_session.history]
+
+        return response.text if response else 'No response from Gemini model', serialized_history

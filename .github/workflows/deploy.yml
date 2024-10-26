@@ -41,8 +41,5 @@ jobs:
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
-            --timeout=600
-        env:
-          GEMINI_URL: ${{ secrets.GEMINI_URL }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+            --timeout=600 \
+            --set-env-vars GEMINI_URL=${{ secrets.GEMINI_URL }},ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}

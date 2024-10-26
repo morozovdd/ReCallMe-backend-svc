@@ -25,11 +25,11 @@ RUN poetry config virtualenvs.create false \
 # Copy the rest of the application code
 COPY . /app
 
-# Expose the port your app will run on
-EXPOSE 8095
+# Expose the port your app will run on (Cloud Run uses 8080 by default)
+EXPOSE 8080
 
-# Set the environment variable for the port
-ENV PORT=8095
+# Remove the custom PORT environment variable
+# ENV PORT=8095  # Remove or comment out this line
 
 # Run the application using Taskipy
 CMD ["poetry", "run", "task", "recall-svc-backend"]
