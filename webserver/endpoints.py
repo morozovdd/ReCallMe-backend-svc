@@ -1,6 +1,6 @@
 from flask import request
 from flask_restx import Resource, reqparse
-from webserver.api_models import multiply_api_model, inference_api_model
+from webserver.api_models import multiply_api_model, inference_api_model, inference_chat_api
 from webserver.extensions import api
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask import Blueprint
@@ -68,6 +68,31 @@ class GeminiTextInference(Resource):
         except Exception as e:
             # Handle exceptions and return an error message
             return {'error': str(e)}, 500
+
+    @recall_namespace.route('/gemini-chat-with-history')
+    class GeminiChatWithHistory(Resource):
+        @api.expect(inference_chat_api)
+        def post(self):
+            try:
+                # Get the input query, custom prompt, and history from the request
+                data = request.json
+                input_query = data.get('query')
+                custom_prompt = data.get('custom_prompt', "Your message:")
+                history = data.get('history', [])
+
+                # Create an instance of GeminiLLMHandler
+                llm_handler = GeminiLLMHandler()
+
+                # Call the generate_gemini_response function with history and custom prompt
+                llm_response, updated_history = llm_handler.generate_gemini_response(
+                    input_text=input_query, custom_prompt=custom_prompt, history=history
+                )
+
+                # Return the response, ensuring JSON-serializable format
+                return {'response': llm_response, 'history': updated_history}, 200
+            except Exception as e:
+                # Handle exceptions and return an error message
+                return {'error': str(e)}, 500
 
 
 
