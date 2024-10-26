@@ -1,10 +1,10 @@
 from flask import Flask
 from flask_cors import CORS
+import os
 
 from webserver import endpoints
 
 app = Flask(__name__)
-port_number = 8095
 CORS(app)
 
 # Register Blueprints for endpoints and Swagger UI
@@ -16,4 +16,5 @@ def check_status():
     return "I am here"
 
 if __name__ == '__main__':
-    app.run(debug=True, port = port_number, host = '0.0.0.0')
+    port = int(os.environ.get('PORT', 8095))  # Read from PORT environment variable
+    app.run(debug=True, port = port, host = '0.0.0.0')

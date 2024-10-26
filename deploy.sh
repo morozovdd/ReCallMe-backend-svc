@@ -35,6 +35,5 @@ gcloud run deploy $SERVICE_NAME \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \
-  --port $PORT
 
 echo "Deployment successful!"
