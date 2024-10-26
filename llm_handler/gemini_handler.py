@@ -2,10 +2,10 @@ import os
 import requests
 import json
 import google.generativeai as genai
-from utilities.constants import gemini_url
+from utilities.constants import gemini_url, gemini_api_key
 
 # Configure the Generative AI model
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+genai.configure(api_key=gemini_api_key)
 
 
 class GeminiLLMHandler:
