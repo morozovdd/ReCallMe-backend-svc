@@ -3,6 +3,8 @@ import requests
 import json
 import google.generativeai as genai
 from utilities.constants import gemini_url, gemini_api_key
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
 
 # Configure the Generative AI model
 genai.configure(api_key=gemini_api_key)
@@ -92,8 +94,7 @@ class GeminiLLMHandler:
             "top_p": 0.95,
             "top_k": 64,
             "max_output_tokens": 8192,
-            "response_mime_type": "text/plain",
-        }
+            "response_mime_type": "text/plain"}
 
         model = genai.GenerativeModel(
             model_name="gemini-1.5-flash",
@@ -117,8 +118,14 @@ class GeminiLLMHandler:
         )
 
         # Send the input_text to the model
-        response = chat_session.send_message(input_text)
-
+        response = model.generate_content(input_text,
+            safety_settings={
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+        )
         # Convert history to JSON-compatible format
         def make_json_serializable(obj):
             if isinstance(obj, (dict, list, str, int, float, bool, type(None))):
